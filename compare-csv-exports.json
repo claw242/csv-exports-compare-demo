@@ -1,0 +1,86 @@
+{
+  "name": "Loupe & Lettres \u2014 Compare two CSV exports",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Loupe & Lettres \u2014 cr\u00e9\u00e9 avec l'aide de l'IA\n\n### How it works\nThis manual workflow compares two CSV exports on one exact key column (for example an order ID). It reports rows missing on either side, changed fields, repeated keys and invalid numeric values. The workflow adds no node that sends or stores data and needs no account, API, credential or AI model. Your n8n instance may keep the inputs and outputs in its execution history, depending on its configuration.\n\n### Setup\nImport this JSON into a fresh workflow and run it once with the synthetic orders in \u201cExample inputs\u201d. Then replace key (the key column name), csvA and csvB (the complete CSV texts), and optionally delimiter (one character, default comma) and numericFields (columns to compare as plain decimals such as 10.5 or 10.50). Keep the JavaScript string escaping; JSON.stringify in your editor helps.\n\n### Reading the result\nmissingInB / missingInA: keys present in one file only. changed: matched keys whose other columns differ (trimmed text; numericFields compare by value). duplicateKeysA / B: repeated keys; only the first row of a repeated key is compared. invalidNumeric: empty or non-decimal values in numericFields. A mismatch is a review hint, not proof of an error. This tool compares two files; it does not check real payments or orders.",
+        "height": 610,
+        "width": 740,
+        "color": 3
+      },
+      "id": "overview",
+      "name": "Overview and setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        -520
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "manual",
+      "name": "Run manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: {\"key\":\"order_id\",\"delimiter\":\",\",\"numericFields\":[\"total_price\"],\"csvA\":\"order_id,customer_email,total_price,status\\nSHOP-101,anna@example.com,45.00,paid\\nSHOP-102,ben@example.com,12.50,paid\\nSHOP-103,chloe@example.com,100.00,refunded\\nSHOP-104,dan@example.com,8.00,paid\\nSHOP-102,ben@example.com,12.50,paid\\nSHOP-106,eva@example.com,abc,paid\\n\",\"csvB\":\"order_id,customer_email,total_price,status,channel\\nSHOP-101,anna@example.com,45.0,paid,web\\nSHOP-102,ben@example.org,12.50,paid,web\\nSHOP-103,chloe@example.com,100.00,paid,web\\nSHOP-105,fay@example.com,30.00,paid,web\\nSHOP-105,fay@example.com,30.00,paid,web\\nSHOP-106,eva@example.com,20.00,paid,web\\n\"} }];"
+      },
+      "id": "example",
+      "name": "Example inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "'use strict';\n\n// Loupe & Lettres \u2014 cr\u00e9\u00e9 avec l'aide de l'IA\n// Compares two CSV exports on one exact key column. Reads text only: no file, network or account access.\nconst MAX_CHARS = 1000000;\nconst MAX_ROWS = 10000;\n\nfunction parseCsv(source, delimiter) {\n  if (typeof source !== 'string' || source.length > MAX_CHARS) throw new Error(`CSV must be text of at most ${MAX_CHARS} characters`);\n  const text = source.replace(/^\ufeff/, '');\n  const rows = [];\n  let row = [], field = '', quoted = false, closed = false;\n  const pushField = () => { row.push(field); field = ''; closed = false; };\n  const pushRow = () => {\n    const wasQuoted = closed;\n    pushField();\n    // A truly blank line is ignored; an explicit record whose cells are all empty (\",\", \"\\\"\\\",\\\"\\\"\") is kept so it can be refused.\n    const blankLine = row.length === 1 && row[0].trim() === '' && !wasQuoted;\n    if (!blankLine) rows.push(row);\n    row = [];\n    if (rows.length > MAX_ROWS + 1) throw new Error(`CSV exceeds ${MAX_ROWS} data rows`);\n  };\n  for (let i = 0; i < text.length; i += 1) {\n    const char = text[i];\n    if (quoted) {\n      if (char === '\"' && text[i + 1] === '\"') { field += '\"'; i += 1; }\n      else if (char === '\"') { quoted = false; closed = true; }\n      else field += char;\n    } else if (char === delimiter) pushField();\n    else if (char === '\\n' || char === '\\r') {\n      if (char === '\\r' && text[i + 1] === '\\n') i += 1;\n      pushRow();\n    } else if (char === '\"') {\n      if (field !== '' || closed) throw new Error('Unexpected quote in CSV');\n      quoted = true;\n    } else {\n      if (closed) throw new Error('Unexpected text after closing CSV quote');\n      field += char;\n    }\n  }\n  if (quoted) throw new Error('Unclosed CSV quote');\n  if (field !== '' || row.length || closed) pushRow();\n  if (!rows.length) throw new Error('CSV is empty');\n  return rows;\n}\n\n// A plain decimal: optional sign, digits, optional dot and digits. No thousands separator, no exponent.\nconst DECIMAL = /^[+-]?\\d+(?:\\.\\d+)?$/;\nfunction canonicalDecimal(text) {\n  const negative = text.startsWith('-');\n  const [whole, fraction = ''] = text.replace(/^[+-]/, '').split('.');\n  const w = whole.replace(/^0+(?=\\d)/, '');\n  const f = fraction.replace(/0+$/, '');\n  const body = f ? `${w}.${f}` : w;\n  return body === '0' ? '0' : negative ? `-${body}` : body;\n}\n\nfunction readTable(label, source, delimiter, keyColumn) {\n  const rows = parseCsv(source, delimiter);\n  const headers = rows[0].map(value => value.trim());\n  if (headers.some(value => value === '') || new Set(headers).size !== headers.length) throw new Error(`File ${label}: empty or duplicate CSV header`);\n  if (!headers.includes(keyColumn)) throw new Error(`File ${label}: missing key column ${keyColumn}`);\n  const keyIndex = headers.indexOf(keyColumn);\n  const records = rows.slice(1).map((values, index) => {\n    const row = index + 2;\n    if (values.length !== headers.length) throw new Error(`File ${label}, data row ${row}: column count does not match header`);\n    const fields = Object.create(null);\n    headers.forEach((name, position) => { fields[name] = values[position].trim(); });\n    if (fields[keyColumn] === '') throw new Error(`File ${label}, data row ${row}: key is empty`);\n    return { row, key: fields[keyColumn], fields };\n  });\n  return { label, headers, keyIndex, records };\n}\n\nfunction compareCsv(input) {\n  if (!input || typeof input !== 'object') throw new Error('Input must be an object');\n  const { key, csvA, csvB } = input;\n  const delimiter = input.delimiter === undefined ? ',' : input.delimiter;\n  const numericFields = input.numericFields === undefined ? [] : input.numericFields;\n  if (typeof key !== 'string' || key.trim() === '') throw new Error('key must name the key column');\n  if (typeof delimiter !== 'string' || delimiter.length !== 1 || delimiter === '\"' || /[\\r\\n]/.test(delimiter)) throw new Error('delimiter must be one character other than a quote or a line break');\n  if (!Array.isArray(numericFields) || numericFields.some(name => typeof name !== 'string')) throw new Error('numericFields must be a list of column names');\n  const keyColumn = key.trim();\n  const a = readTable('A', csvA, delimiter, keyColumn);\n  const b = readTable('B', csvB, delimiter, keyColumn);\n  const common = a.headers.filter(name => b.headers.includes(name));\n  for (const name of numericFields) if (!common.includes(name)) throw new Error(`numericFields column ${name} must exist in both files`);\n  const compared = common.filter(name => name !== keyColumn);\n  const numeric = new Set(numericFields);\n\n  const index = table => {\n    const first = new Map(), rowsByKey = new Map();\n    for (const record of table.records) {\n      if (!first.has(record.key)) first.set(record.key, record);\n      rowsByKey.set(record.key, [...(rowsByKey.get(record.key) || []), record.row]);\n    }\n    const duplicates = [...rowsByKey].filter(([, rows]) => rows.length > 1).map(([k, rows]) => ({ key: k, rows }));\n    return { first, duplicates };\n  };\n  const ia = index(a), ib = index(b);\n\n  const invalidNumeric = [];\n  for (const table of [a, b]) {\n    for (const record of table.records) {\n      for (const name of numericFields) {\n        const value = record.fields[name];\n        if (value === '') invalidNumeric.push({ file: table.label, row: record.row, key: record.key, field: name, value, reason: 'empty' });\n        else if (!DECIMAL.test(value)) invalidNumeric.push({ file: table.label, row: record.row, key: record.key, field: name, value, reason: 'not a plain decimal' });\n      }\n    }\n  }\n\n  const same = (name, left, right) => (numeric.has(name) && DECIMAL.test(left) && DECIMAL.test(right)\n    ? canonicalDecimal(left) === canonicalDecimal(right)\n    : left === right);\n  const changed = [], missingInB = [];\n  let identical = 0;\n  for (const [k, ra] of ia.first) {\n    const rb = ib.first.get(k);\n    if (!rb) { missingInB.push({ key: k, row: ra.row }); continue; }\n    const fields = compared.filter(name => !same(name, ra.fields[name], rb.fields[name]))\n      .map(name => ({ field: name, a: ra.fields[name], b: rb.fields[name] }));\n    if (fields.length) changed.push({ key: k, rowA: ra.row, rowB: rb.row, fields });\n    else identical += 1;\n  }\n  const missingInA = [...ib.first].filter(([k]) => !ia.first.has(k)).map(([k, rb]) => ({ key: k, row: rb.row }));\n\n  return {\n    key: keyColumn,\n    summary: {\n      rowsA: a.records.length,\n      rowsB: b.records.length,\n      matchedKeys: identical + changed.length,\n      identical,\n      changed: changed.length,\n      missingInB: missingInB.length,\n      missingInA: missingInA.length,\n      duplicateKeysA: ia.duplicates.length,\n      duplicateKeysB: ib.duplicates.length,\n      invalidNumeric: invalidNumeric.length,\n      needsReview: a.headers.length !== common.length || b.headers.length !== common.length || changed.length + missingInB.length + missingInA.length + ia.duplicates.length + ib.duplicates.length + invalidNumeric.length > 0,\n    },\n    columnsOnlyInA: a.headers.filter(name => !b.headers.includes(name)),\n    columnsOnlyInB: b.headers.filter(name => !a.headers.includes(name)),\n    missingInB,\n    missingInA,\n    changed,\n    duplicateKeysA: ia.duplicates,\n    duplicateKeysB: ib.duplicates,\n    invalidNumeric,\n    limitations: 'Exact key match after trimming spaces. Only the first row of a repeated key is compared; repeats are listed. needsReview is false only when nothing at all needs a look (columns present in one file only count); a count of identical rows is not a green light. Other columns are compared as trimmed text, except numericFields (plain decimals compared by value). This checks the two files against each other; it does not verify any real payment or order.',\n  };\n}\n\n\nreturn [{ json: compareCsv($input.first().json) }];\n"
+      },
+      "id": "compare",
+      "name": "Compare exports",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        540,
+        160
+      ]
+    }
+  ],
+  "connections": {
+    "Run manually": {
+      "main": [
+        [
+          {
+            "node": "Example inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Example inputs": {
+      "main": [
+        [
+          {
+            "node": "Compare exports",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
