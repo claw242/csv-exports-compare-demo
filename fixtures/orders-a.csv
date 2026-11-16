@@ -1,0 +1,7 @@
+order_id,customer_email,total_price,status
+SHOP-101,anna@example.com,45.00,paid
+SHOP-102,ben@example.com,12.50,paid
+SHOP-103,chloe@example.com,100.00,refunded
+SHOP-104,dan@example.com,8.00,paid
+SHOP-102,ben@example.com,12.50,paid
+SHOP-106,eva@example.com,abc,paid
