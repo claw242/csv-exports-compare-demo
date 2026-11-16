@@ -1,0 +1,7 @@
+order_id,customer_email,total_price,status,channel
+SHOP-101,anna@example.com,45.0,paid,web
+SHOP-102,ben@example.org,12.50,paid,web
+SHOP-103,chloe@example.com,100.00,paid,web
+SHOP-105,fay@example.com,30.00,paid,web
+SHOP-105,fay@example.com,30.00,paid,web
+SHOP-106,eva@example.com,20.00,paid,web
