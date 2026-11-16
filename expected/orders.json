@@ -1,0 +1,99 @@
+{
+  "key": "order_id",
+  "summary": {
+    "rowsA": 6,
+    "rowsB": 6,
+    "matchedKeys": 4,
+    "identical": 1,
+    "changed": 3,
+    "missingInB": 1,
+    "missingInA": 1,
+    "duplicateKeysA": 1,
+    "duplicateKeysB": 1,
+    "invalidNumeric": 1,
+    "needsReview": true
+  },
+  "columnsOnlyInA": [],
+  "columnsOnlyInB": [
+    "channel"
+  ],
+  "missingInB": [
+    {
+      "key": "SHOP-104",
+      "row": 5
+    }
+  ],
+  "missingInA": [
+    {
+      "key": "SHOP-105",
+      "row": 5
+    }
+  ],
+  "changed": [
+    {
+      "key": "SHOP-102",
+      "rowA": 3,
+      "rowB": 3,
+      "fields": [
+        {
+          "field": "customer_email",
+          "a": "ben@example.com",
+          "b": "ben@example.org"
+        }
+      ]
+    },
+    {
+      "key": "SHOP-103",
+      "rowA": 4,
+      "rowB": 4,
+      "fields": [
+        {
+          "field": "status",
+          "a": "refunded",
+          "b": "paid"
+        }
+      ]
+    },
+    {
+      "key": "SHOP-106",
+      "rowA": 7,
+      "rowB": 7,
+      "fields": [
+        {
+          "field": "total_price",
+          "a": "abc",
+          "b": "20.00"
+        }
+      ]
+    }
+  ],
+  "duplicateKeysA": [
+    {
+      "key": "SHOP-102",
+      "rows": [
+        3,
+        6
+      ]
+    }
+  ],
+  "duplicateKeysB": [
+    {
+      "key": "SHOP-105",
+      "rows": [
+        5,
+        6
+      ]
+    }
+  ],
+  "invalidNumeric": [
+    {
+      "file": "A",
+      "row": 7,
+      "key": "SHOP-106",
+      "field": "total_price",
+      "value": "abc",
+      "reason": "not a plain decimal"
+    }
+  ],
+  "limitations": "Exact key match after trimming spaces. Only the first row of a repeated key is compared; repeats are listed. needsReview is false only when nothing at all needs a look (columns present in one file only count); a count of identical rows is not a green light. Other columns are compared as trimmed text, except numericFields (plain decimals compared by value). This checks the two files against each other; it does not verify any real payment or order."
+}
